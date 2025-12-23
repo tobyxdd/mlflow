@@ -1,0 +1,35 @@
+# Stage 1: Build the React UI
+FROM node:22 AS ui-builder
+
+WORKDIR /app/mlflow/server/js
+
+# Copy all JS source files first
+COPY mlflow/server/js/ ./
+
+# Install dependencies and build
+RUN corepack enable && yarn install && yarn build
+
+# Stage 2: Build the Python package with UI
+FROM python:3.10-slim-bullseye
+
+WORKDIR /tmp/build
+
+# Copy source
+COPY . .
+
+# Copy built UI assets from stage 1
+COPY --from=ui-builder /app/mlflow/server/js/build /tmp/build/mlflow/server/js/build
+
+RUN pip install boto3
+RUN pip install mlflow-oidc-auth[full]
+
+# Install MLflow
+RUN pip install --no-cache-dir . && \
+    rm -rf /tmp/build
+
+WORKDIR /mlflow
+
+EXPOSE 5000
+
+ENTRYPOINT ["mlflow"]
+CMD ["server", "--host", "0.0.0.0"]
